@@ -27,6 +27,46 @@ def test_post_note_empty_title(client):
     assert "detail" in data
 
 
+def test_post_note_title_too_short(client):
+    """POST /notes with title < 3 chars -> 422."""
+    response = client.post("/notes", json={"title": "ab", "content": "Valid content"})
+    assert response.status_code == 422
+    data = response.json()
+    assert data["error"] == "validation_error"
+    assert data["field"] == "title"
+
+
+def test_post_note_title_too_long(client):
+    """POST /notes with title > 200 chars -> 422."""
+    long_title = "a" * 201
+    response = client.post("/notes", json={"title": long_title, "content": "Valid content"})
+    assert response.status_code == 422
+    data = response.json()
+    assert data["error"] == "validation_error"
+    assert data["field"] == "title"
+
+
+def test_post_note_content_too_long(client):
+    """POST /notes with content > 10,000 chars -> 422."""
+    long_content = "c" * 10001
+    response = client.post("/notes", json={"title": "Valid Title", "content": long_content})
+    assert response.status_code == 422
+    data = response.json()
+    assert data["error"] == "validation_error"
+    assert data["field"] == "content"
+
+
+def test_post_note_strips_whitespace(client):
+    """POST /notes strips leading and trailing whitespace from title and content."""
+    payload = {"title": "   Spaced Title   ", "content": "   Spaced Content   "}
+    response = client.post("/notes", json=payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["title"] == "Spaced Title"
+    assert data["content"] == "Spaced Content"
+
+
 def test_post_note_missing_content(client):
     """POST /notes with missing content -> 422 + validation error in response."""
     payload = {"title": "Valid Title"}
@@ -100,6 +140,18 @@ def test_put_note_valid_data(client):
     assert data["title"] == "Updated Title"
     assert data["content"] == "Updated Content"
     assert data["created_at"] == created["created_at"]
+
+
+def test_put_note_validation_error(client):
+    """PUT /notes/{id} with invalid title length -> 422."""
+    created = client.post("/notes", json={"title": "Valid Title", "content": "Valid Content"}).json()
+    note_id = created["id"]
+
+    response = client.put(f"/notes/{note_id}", json={"title": "no"})
+    assert response.status_code == 422
+    data = response.json()
+    assert data["error"] == "validation_error"
+    assert data["field"] == "title"
 
 
 def test_put_note_non_existent_id(client):
